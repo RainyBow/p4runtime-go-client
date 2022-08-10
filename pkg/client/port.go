@@ -1,7 +1,7 @@
 package client
 
 import (
-	"github.com/antoninbas/p4runtime-go-client/pkg/util/conversion"
+	"github.com/RainyBow/p4runtime-go-client/pkg/util/conversion"
 )
 
 type Port struct {

@@ -9,7 +9,7 @@ all: bin
 
 .bins/p4c-lite.sh:
 	@mkdir -p .bins
-	@curl -s https://raw.githubusercontent.com/antoninbas/p4c-lite-docker/master/p4c-lite.sh -o $@
+	@curl -s https://raw.githubusercontent.com/RainyBow/p4c-lite-docker/master/p4c-lite.sh -o $@
 	@chmod +x $@
 
 l2_switch: .bins/go-bindata .bins/p4c-lite.sh
@@ -24,7 +24,7 @@ wcmp: .bins/go-bindata .bins/p4c-lite.sh
 
 .PHONY: bin
 bin:
-	GOBIN=$(BINDIR) $(GO) install github.com/antoninbas/p4runtime-go-client/...
+	GOBIN=$(BINDIR) $(GO) install github.com/RainyBow/p4runtime-go-client/...
 
 clean:
 	rm -rf bin
@@ -33,16 +33,16 @@ clean:
 
 .PHONY: fmt
 fmt:
-	$(GO) fmt github.com/antoninbas/p4runtime-go-client/...
+	$(GO) fmt github.com/RainyBow/p4runtime-go-client/...
 
 # Run unit tests only, no integration tests
 .PHONY: check-unit
 check-unit:
-	$(GO) test github.com/antoninbas/p4runtime-go-client/...
+	$(GO) test github.com/RainyBow/p4runtime-go-client/...
 
 .PHONY: check
 check:
-	$(GO) test -tags=integration github.com/antoninbas/p4runtime-go-client/...
+	$(GO) test -tags=integration github.com/RainyBow/p4runtime-go-client/...
 
 # code linting
 .golangci-bin:
