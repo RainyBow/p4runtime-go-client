@@ -125,6 +125,16 @@ func (c *Client) WriteUpdate(ctx context.Context, update *p4_v1.Update) error {
 	return err
 }
 
+func (c *Client) WriteManyUpdate(ctx context.Context, updates []*p4_v1.Update) error {
+	req := &p4_v1.WriteRequest{
+		DeviceId:   c.deviceID,
+		ElectionId: &c.electionID,
+		Updates:    updates,
+	}
+	_, err := c.Write(ctx, req)
+	return err
+}
+
 func (c *Client) ReadEntitySingle(ctx context.Context, entity *p4_v1.Entity) (*p4_v1.Entity, error) {
 	req := &p4_v1.ReadRequest{
 		DeviceId: c.deviceID,
