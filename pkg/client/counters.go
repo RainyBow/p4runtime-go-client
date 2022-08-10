@@ -28,6 +28,28 @@ func (c *Client) ModifyCounterEntry(ctx context.Context, counter string, index i
 	return c.WriteUpdate(ctx, update)
 }
 
+// 可以一次性更新一个Counter的多个Index为相同数据,主要用于重置计数器为0的场景
+func (c *Client) ModifyManyCounterEntry(ctx context.Context, counter string, indexs []int64, data *p4_v1.CounterData) error {
+	counterID := c.counterId(counter)
+	updates := []*p4_v1.Update{}
+	for _, index := range indexs {
+		entry := &p4_v1.CounterEntry{
+			CounterId: counterID,
+			Index:     &p4_v1.Index{Index: index},
+			Data:      data,
+		}
+		update := &p4_v1.Update{
+			Type: p4_v1.Update_MODIFY,
+			Entity: &p4_v1.Entity{
+				Entity: &p4_v1.Entity_CounterEntry{CounterEntry: entry},
+			},
+		}
+		updates = append(updates, update)
+	}
+
+	return c.WriteManyUpdate(ctx, updates)
+}
+
 func (c *Client) ReadCounterEntry(ctx context.Context, counter string, index int64) (*p4_v1.CounterData, error) {
 	counterID := c.counterId(counter)
 	entry := &p4_v1.CounterEntry{
