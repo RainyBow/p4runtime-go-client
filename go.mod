@@ -1,4 +1,4 @@
-module github.com/antoninbas/p4runtime-go-client
+module github.com/RainyBow/p4runtime-go-client
 
 go 1.15
 
