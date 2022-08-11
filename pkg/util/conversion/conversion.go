@@ -14,6 +14,14 @@ func IpToBinary(ipStr string) ([]byte, error) {
 	return []byte(ip.To4()), nil
 }
 
+func Ip6ToBinary(ipStr string) ([]byte, error) {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return nil, fmt.Errorf("Not a valid IP: %s", ipStr)
+	}
+	return []byte(ip.To16()), nil
+}
+
 func MacToBinary(macStr string) ([]byte, error) {
 	mac, err := net.ParseMAC(macStr)
 	if err != nil {

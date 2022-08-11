@@ -3,6 +3,8 @@ package client
 import (
 	"context"
 	"fmt"
+	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -349,10 +351,50 @@ func (c *Client) DeleteTableEntry(ctx context.Context, entry *p4_v1.TableEntry) 
 	return c.WriteUpdate(ctx, update)
 }
 
+func formartByts2String(byts []byte) string {
+	switch len(byts) {
+	case 4:
+		// ipv4
+		char_list := []string{}
+		for _, b := range byts {
+			char_list = append(char_list, fmt.Sprintf("%d", b))
+		}
+		return strings.Join(char_list, ".")
+	case 6:
+		char_list := []string{}
+		for _, b := range byts {
+			char_list = append(char_list, fmt.Sprintf("%02x", b))
+		}
+		return strings.Join(char_list, ":")
+	case 16:
+		char_list := []string{}
+		for _, b := range byts {
+			char_list = append(char_list, fmt.Sprintf("%02x", b))
+		}
+		return net.ParseIP(strings.Join(char_list, ":")).To16().String()
+	case 1:
+		return fmt.Sprintf("%d", byts[0])
+	default:
+		var n int64
+		for _, b := range byts {
+			n = n<<4 + int64(b)
+		}
+		return fmt.Sprintf("%d", n)
+	}
+}
+
 type TableEntry struct {
 	Name   string        `json:"table_name"`
 	Fields []*MatchField `json:"fields"`
 	Action *Action       `json:"action"`
+}
+
+func (table_entry *TableEntry) String() string {
+	field_list := []string{}
+	for _, field := range table_entry.Fields {
+		field_list = append(field_list, field.String())
+	}
+	return fmt.Sprintf("Table %s: %s => %s", table_entry.Name, strings.Join(field_list, ","), table_entry.Action.String())
 }
 
 type MatchType string
@@ -376,23 +418,65 @@ type MatchField struct {
 	High      []byte    `json:"high,omitempty"`       // just for type Range
 
 }
+
+func (mf *MatchField) String() string {
+	s := fmt.Sprintf("%s(%s)=", mf.Name, mf.Type)
+	switch mf.Type {
+	case Exact, Optional, Other:
+		s += formartByts2String(mf.Value)
+	case Lpm:
+		s += fmt.Sprintf("[%s,%d]", formartByts2String(mf.Value), mf.PrefixLen)
+	case Ternary:
+		s += fmt.Sprintf("[%s &&& %s]", formartByts2String(mf.Value), formartByts2String(mf.Mask))
+	case Range:
+		s += fmt.Sprintf("[%s-%s]", formartByts2String(mf.Low), formartByts2String(mf.High))
+	}
+	return s
+}
+
 type Action struct {
 	Name   string         `json:"action_name"`
 	Params []*ActionParam `json:"table_params"`
 }
+
+func (action *Action) String() string {
+
+	s := action.Name
+	if len(action.Params) > 0 {
+		param_list := []string{}
+		for _, param := range action.Params {
+			param_list = append(param_list, param.String())
+		}
+		s = s + fmt.Sprintf("(%s)", strings.Join(param_list, ","))
+	}
+	return s
+}
+
 type ActionParam struct {
 	Name  string `json:"param_name"`
 	Value []byte `json:"param_value"`
 }
 
-// TableEntryEncode TableEntry to p4_v1.TableEntry
-func (c *Client) TableEntryEncode(table_entry *TableEntry) (p4_table_entry *p4_v1.TableEntry) {
+func (ap *ActionParam) String() string {
+	return fmt.Sprintf("%s=%v", ap.Name, formartByts2String(ap.Value))
+}
+
+// TableEntryEncode convert TableEntry to p4_v1.TableEntry
+func (c *Client) TableEntryEncode(table_entry *TableEntry) (p4_table_entry *p4_v1.TableEntry, err error) {
 	p4_table_entry = &p4_v1.TableEntry{}
 	p4_table_entry.TableId = c.tableId(table_entry.Name)
+	if p4_table_entry.TableId == invalidID {
+		err = fmt.Errorf("unknown table name:%s", table_entry.Name)
+		return
+	}
 	// do match field
 	p4_table_entry.Match = []*p4_v1.FieldMatch{}
 	for _, field := range table_entry.Fields {
 		field_id := c.matchFieldId(table_entry.Name, field.Name)
+		if field_id == invalidID {
+			err = fmt.Errorf("unknown field name:%s in table %s", field.Name, table_entry.Name)
+			return
+		}
 		var match_field *p4_v1.FieldMatch
 		switch field.Type {
 		case Exact:
@@ -442,11 +526,19 @@ func (c *Client) TableEntryEncode(table_entry *TableEntry) (p4_table_entry *p4_v
 	}
 	// do action
 	action := &p4_v1.Action{ActionId: c.actionId(table_entry.Action.Name)}
+	if action.ActionId == invalidID {
+		err = fmt.Errorf("unknown action name:%s", table_entry.Action.Name)
+		return
+	}
 	action.Params = []*p4_v1.Action_Param{}
 	for _, param := range table_entry.Action.Params {
 		action_param := &p4_v1.Action_Param{
 			ParamId: c.actionParamId(table_entry.Action.Name, param.Name),
 			Value:   param.Value,
+		}
+		if action_param.ParamId == invalidID {
+			err = fmt.Errorf("unknown param name:%s in action %s", param.Name, table_entry.Action.Name)
+			return
 		}
 		action.Params = append(action.Params, action_param)
 	}
@@ -458,13 +550,20 @@ func (c *Client) TableEntryEncode(table_entry *TableEntry) (p4_table_entry *p4_v
 
 // TableEntryDecode   p4_v1.TableEntry to  TableEntry
 func (c *Client) TableEntryDecode(p4_table_entry *p4_v1.TableEntry) (table_entry *TableEntry, err error) {
-
 	table_entry = &TableEntry{}
 	table := c.findTableById(p4_table_entry.TableId)
+	if table == nil {
+		err = fmt.Errorf("can not find table(id=%d) in p4info", p4_table_entry.TableId)
+		return
+	}
 	table_entry.Name = table.Preamble.Name
 	table_entry.Fields = []*MatchField{}
 	for _, field := range p4_table_entry.Match {
 		field_match := c.findFieldInTable(table, field.FieldId)
+		if table == nil {
+			err = fmt.Errorf("can not find match field(id=%d) on table %s in p4info", field.FieldId, table_entry.Name)
+			return
+		}
 		match_field := &MatchField{Name: field_match.Name}
 		switch field_match.GetMatchType() {
 		case p4_config_v1.MatchField_EXACT:
@@ -494,11 +593,19 @@ func (c *Client) TableEntryDecode(p4_table_entry *p4_v1.TableEntry) (table_entry
 	// do action
 	p4_action := p4_table_entry.Action.GetAction()
 	action := c.getActionById(p4_action.ActionId)
+	if action == nil {
+		err = fmt.Errorf("can not find action(id=%d) in p4info", p4_action.ActionId)
+		return
+	}
 	table_entry.Action = &Action{Name: action.Preamble.Name, Params: []*ActionParam{}}
 	for _, param := range p4_action.Params {
 		action_param := &ActionParam{
 			Name:  c.getActionParamName(action, param.ParamId),
 			Value: param.Value,
+		}
+		if action_param.Name == unknownName {
+			err = fmt.Errorf("can not find param(id=%d) in action %s", param.ParamId, table_entry.Action.Name)
+			return
 		}
 		table_entry.Action.Params = append(table_entry.Action.Params, action_param)
 	}

@@ -5,9 +5,7 @@ import (
 )
 
 const invalidID = 0
-const unknownName = "unknownName"
-
-var defaultAction = &p4_config_v1.Action{}
+const unknownName = ""
 
 func (c *Client) tableId(name string) uint32 {
 	if c.p4Info == nil {
@@ -19,17 +17,6 @@ func (c *Client) tableId(name string) uint32 {
 		}
 	}
 	return invalidID
-}
-func (c *Client) tableName(id uint32) string {
-	if c.p4Info == nil {
-		return unknownName
-	}
-	for _, table := range c.p4Info.Tables {
-		if table.Preamble.Id == id {
-			return table.Preamble.Name
-		}
-	}
-	return unknownName
 }
 
 func (c *Client) findTable(name string) *p4_config_v1.Table {
@@ -79,7 +66,7 @@ func (c *Client) findFieldInTable(table *p4_config_v1.Table, fieldId uint32) *p4
 			return mf
 		}
 	}
-	return &p4_config_v1.MatchField{}
+	return nil
 }
 
 func (c *Client) actionId(name string) uint32 {
@@ -113,14 +100,14 @@ func (c *Client) actionParamId(action_name, param_name string) uint32 {
 
 func (c *Client) getActionById(action_id uint32) *p4_config_v1.Action {
 	if c.p4Info == nil {
-		return defaultAction
+		return nil
 	}
 	for _, action := range c.p4Info.Actions {
 		if action.Preamble.Id == action_id {
 			return action
 		}
 	}
-	return defaultAction
+	return nil
 }
 func (c *Client) getActionParamName(action *p4_config_v1.Action, paramId uint32) string {
 	for _, param := range action.Params {
