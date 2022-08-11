@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/ptypes/any"
+	p4_config_v1 "github.com/p4lang/p4runtime/go/p4/config/v1"
 	p4_v1 "github.com/p4lang/p4runtime/go/p4/v1"
 
 	"github.com/RainyBow/p4runtime-go-client/pkg/util/conversion"
@@ -345,4 +347,161 @@ func (c *Client) DeleteTableEntry(ctx context.Context, entry *p4_v1.TableEntry) 
 	}
 
 	return c.WriteUpdate(ctx, update)
+}
+
+type TableEntry struct {
+	Name   string        `json:"table_name"`
+	Fields []*MatchField `json:"fields"`
+	Action *Action       `json:"action"`
+}
+
+type MatchType string
+
+const (
+	Exact    MatchType = "exact"
+	Ternary  MatchType = "ternary"
+	Lpm      MatchType = "lpm"
+	Range    MatchType = "range"
+	Optional MatchType = "optional"
+	Other    MatchType = "other"
+)
+
+type MatchField struct {
+	Name      string    `json:"field_name"`           // field name
+	Type      MatchType `json:"match_type"`           // match type
+	Value     []byte    `json:"value,omitempty"`      // match value  for
+	Mask      []byte    `json:"mask,omitempty"`       // just for type Ternary
+	PrefixLen int32     `json:"prefix_len,omitempty"` // just for type Lpm
+	Low       []byte    `json:"low,omitempty"`        // just for type Range
+	High      []byte    `json:"high,omitempty"`       // just for type Range
+
+}
+type Action struct {
+	Name   string         `json:"action_name"`
+	Params []*ActionParam `json:"table_params"`
+}
+type ActionParam struct {
+	Name  string `json:"param_name"`
+	Value []byte `json:"param_value"`
+}
+
+// TableEntryEncode TableEntry to p4_v1.TableEntry
+func (c *Client) TableEntryEncode(table_entry *TableEntry) (p4_table_entry *p4_v1.TableEntry) {
+	p4_table_entry = &p4_v1.TableEntry{}
+	p4_table_entry.TableId = c.tableId(table_entry.Name)
+	// do match field
+	p4_table_entry.Match = []*p4_v1.FieldMatch{}
+	for _, field := range table_entry.Fields {
+		field_id := c.matchFieldId(table_entry.Name, field.Name)
+		var match_field *p4_v1.FieldMatch
+		switch field.Type {
+		case Exact:
+			match_field = &p4_v1.FieldMatch{
+				FieldId: field_id,
+				FieldMatchType: &p4_v1.FieldMatch_Exact_{
+					Exact: &p4_v1.FieldMatch_Exact{Value: field.Value},
+				},
+			}
+		case Lpm:
+			match_field = &p4_v1.FieldMatch{
+				FieldId: field_id,
+				FieldMatchType: &p4_v1.FieldMatch_Lpm{
+					Lpm: &p4_v1.FieldMatch_LPM{Value: field.Value, PrefixLen: field.PrefixLen},
+				},
+			}
+		case Ternary:
+			match_field = &p4_v1.FieldMatch{
+				FieldId: field_id,
+				FieldMatchType: &p4_v1.FieldMatch_Ternary_{
+					Ternary: &p4_v1.FieldMatch_Ternary{Value: field.Value, Mask: field.Mask},
+				},
+			}
+		case Range:
+			match_field = &p4_v1.FieldMatch{
+				FieldId: field_id,
+				FieldMatchType: &p4_v1.FieldMatch_Range_{
+					Range: &p4_v1.FieldMatch_Range{Low: field.Low, High: field.High},
+				},
+			}
+		case Optional:
+			match_field = &p4_v1.FieldMatch{
+				FieldId: field_id,
+				FieldMatchType: &p4_v1.FieldMatch_Optional_{
+					Optional: &p4_v1.FieldMatch_Optional{Value: field.Value},
+				},
+			}
+		case Other:
+			match_field = &p4_v1.FieldMatch{
+				FieldId: field_id,
+				FieldMatchType: &p4_v1.FieldMatch_Other{
+					Other: &any.Any{Value: field.Value},
+				},
+			}
+		}
+		p4_table_entry.Match = append(p4_table_entry.Match, match_field)
+	}
+	// do action
+	action := &p4_v1.Action{ActionId: c.actionId(table_entry.Action.Name)}
+	action.Params = []*p4_v1.Action_Param{}
+	for _, param := range table_entry.Action.Params {
+		action_param := &p4_v1.Action_Param{
+			ParamId: c.actionParamId(table_entry.Action.Name, param.Name),
+			Value:   param.Value,
+		}
+		action.Params = append(action.Params, action_param)
+	}
+	p4_table_entry.Action = &p4_v1.TableAction{
+		Type: &p4_v1.TableAction_Action{Action: action},
+	}
+	return
+}
+
+// TableEntryDecode   p4_v1.TableEntry to  TableEntry
+func (c *Client) TableEntryDecode(p4_table_entry *p4_v1.TableEntry) (table_entry *TableEntry, err error) {
+
+	table_entry = &TableEntry{}
+	table := c.findTableById(p4_table_entry.TableId)
+	table_entry.Name = table.Preamble.Name
+	table_entry.Fields = []*MatchField{}
+	for _, field := range p4_table_entry.Match {
+		field_match := c.findFieldInTable(table, field.FieldId)
+		match_field := &MatchField{Name: field_match.Name}
+		switch field_match.GetMatchType() {
+		case p4_config_v1.MatchField_EXACT:
+			match_field.Type = Exact
+			match_field.Value = field.GetExact().GetValue()
+		case p4_config_v1.MatchField_LPM:
+			match_field.Type = Lpm
+			match_field.Value = field.GetLpm().GetValue()
+			match_field.PrefixLen = field.GetLpm().GetPrefixLen()
+		case p4_config_v1.MatchField_TERNARY:
+			match_field.Type = Ternary
+			match_field.Value = field.GetTernary().GetValue()
+			match_field.Mask = field.GetTernary().GetMask()
+		case p4_config_v1.MatchField_RANGE:
+			match_field.Type = Range
+			match_field.Low = field.GetRange().GetLow()
+			match_field.High = field.GetRange().GetHigh()
+		case p4_config_v1.MatchField_OPTIONAL:
+			match_field.Type = Optional
+			match_field.Value = field.GetOptional().GetValue()
+		default:
+			match_field.Type = Other
+			match_field.Value = field.GetOther().GetValue()
+		}
+		table_entry.Fields = append(table_entry.Fields, match_field)
+	}
+	// do action
+	p4_action := p4_table_entry.Action.GetAction()
+	action := c.getActionById(p4_action.ActionId)
+	table_entry.Action = &Action{Name: action.Preamble.Name, Params: []*ActionParam{}}
+	for _, param := range p4_action.Params {
+		action_param := &ActionParam{
+			Name:  c.getActionParamName(action, param.ParamId),
+			Value: param.Value,
+		}
+		table_entry.Action.Params = append(table_entry.Action.Params, action_param)
+	}
+
+	return
 }

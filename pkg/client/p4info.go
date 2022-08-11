@@ -5,6 +5,9 @@ import (
 )
 
 const invalidID = 0
+const unknownName = "unknownName"
+
+var defaultAction = &p4_config_v1.Action{}
 
 func (c *Client) tableId(name string) uint32 {
 	if c.p4Info == nil {
@@ -17,6 +20,17 @@ func (c *Client) tableId(name string) uint32 {
 	}
 	return invalidID
 }
+func (c *Client) tableName(id uint32) string {
+	if c.p4Info == nil {
+		return unknownName
+	}
+	for _, table := range c.p4Info.Tables {
+		if table.Preamble.Id == id {
+			return table.Preamble.Name
+		}
+	}
+	return unknownName
+}
 
 func (c *Client) findTable(name string) *p4_config_v1.Table {
 	if c.p4Info == nil {
@@ -24,6 +38,18 @@ func (c *Client) findTable(name string) *p4_config_v1.Table {
 	}
 	for _, table := range c.p4Info.Tables {
 		if table.Preamble.Name == name {
+			return table
+		}
+	}
+	return nil
+}
+
+func (c *Client) findTableById(id uint32) *p4_config_v1.Table {
+	if c.p4Info == nil {
+		return nil
+	}
+	for _, table := range c.p4Info.Tables {
+		if table.Preamble.Id == id {
 			return table
 		}
 	}
@@ -46,6 +72,16 @@ func (c *Client) matchFieldId(tableName, fieldName string) uint32 {
 	return invalidID
 }
 
+func (c *Client) findFieldInTable(table *p4_config_v1.Table, fieldId uint32) *p4_config_v1.MatchField {
+
+	for _, mf := range table.MatchFields {
+		if mf.Id == fieldId {
+			return mf
+		}
+	}
+	return &p4_config_v1.MatchField{}
+}
+
 func (c *Client) actionId(name string) uint32 {
 	if c.p4Info == nil {
 		return invalidID
@@ -56,6 +92,43 @@ func (c *Client) actionId(name string) uint32 {
 		}
 	}
 	return invalidID
+}
+
+func (c *Client) actionParamId(action_name, param_name string) uint32 {
+	if c.p4Info == nil {
+		return invalidID
+	}
+	for _, action := range c.p4Info.Actions {
+		if action.Preamble.Name == action_name {
+			for _, param := range action.Params {
+				if param.Name == param_name {
+					return param.Id
+				}
+			}
+			break
+		}
+	}
+	return invalidID
+}
+
+func (c *Client) getActionById(action_id uint32) *p4_config_v1.Action {
+	if c.p4Info == nil {
+		return defaultAction
+	}
+	for _, action := range c.p4Info.Actions {
+		if action.Preamble.Id == action_id {
+			return action
+		}
+	}
+	return defaultAction
+}
+func (c *Client) getActionParamName(action *p4_config_v1.Action, paramId uint32) string {
+	for _, param := range action.Params {
+		if param.Id == paramId {
+			return param.Name
+		}
+	}
+	return unknownName
 }
 
 func (c *Client) actionProfileId(name string) uint32 {
