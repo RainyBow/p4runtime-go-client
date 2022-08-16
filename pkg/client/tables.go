@@ -384,9 +384,10 @@ func formartByts2String(byts []byte) string {
 }
 
 type TableEntry struct {
-	Name   string        `json:"table_name"`
-	Fields []*MatchField `json:"fields"`
-	Action *Action       `json:"action"`
+	Name     string        `json:"table_name"`
+	Fields   []*MatchField `json:"fields"`
+	Action   *Action       `json:"action"`
+	Priority int32         `json:"priority"`
 }
 
 func (table_entry *TableEntry) String() string {
@@ -465,6 +466,7 @@ func (ap *ActionParam) String() string {
 func (c *Client) TableEntryEncode(table_entry *TableEntry) (p4_table_entry *p4_v1.TableEntry, err error) {
 	p4_table_entry = &p4_v1.TableEntry{}
 	p4_table_entry.TableId = c.tableId(table_entry.Name)
+	p4_table_entry.Priority = table_entry.Priority
 	if p4_table_entry.TableId == invalidID {
 		err = fmt.Errorf("unknown table name:%s", table_entry.Name)
 		return
