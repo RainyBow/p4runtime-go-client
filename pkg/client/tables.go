@@ -377,7 +377,7 @@ func formartByts2String(byts []byte) string {
 	default:
 		var n int64
 		for _, b := range byts {
-			n = n<<4 + int64(b)
+			n = n<<8 + int64(b)
 		}
 		return fmt.Sprintf("%d", n)
 	}
