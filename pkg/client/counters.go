@@ -60,7 +60,9 @@ func (c *Client) ReadCounterEntry(ctx context.Context, counter string, index int
 		Entity: &p4_v1.Entity_CounterEntry{CounterEntry: entry},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error when reading counter entry: %v", err)
+		// 原样返回err,以便后续可以以GRPC的错误进行处理
+		// return nil, fmt.Errorf("error when reading counter entry: %v", err)
+		return nil, err
 	}
 	readEntry := readEntity.GetCounterEntry()
 	if readEntry == nil {
@@ -96,7 +98,9 @@ func (c *Client) ReadCounterEntryWildcard(ctx context.Context, counter string) (
 	if err := c.ReadEntityWildcard(ctx, &p4_v1.Entity{
 		Entity: &p4_v1.Entity_CounterEntry{CounterEntry: entry},
 	}, readEntityCh); err != nil {
-		return nil, fmt.Errorf("error when reading counter entries: %v", err)
+		// 原样返回err,以便后续可以以GRPC的错误进行处理
+		// return nil, fmt.Errorf("error when reading counter entries: %v", err)
+		return nil, err
 	}
 	wg.Wait()
 	if err != nil {

@@ -102,7 +102,9 @@ func (c *Client) GetFwdPipe(ctx context.Context, responseType GetFwdPipeResponse
 
 	resp, err := c.GetForwardingPipelineConfig(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("error when retrieving forwardingpipeline config: %v", err)
+		// 原样返回err,以便后续可以以GRPC的错误进行处理
+		// return nil, fmt.Errorf("error when retrieving forwardingpipeline config: %v", err)
+		return nil, err
 	}
 
 	config := resp.GetConfig()

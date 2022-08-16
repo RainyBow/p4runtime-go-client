@@ -25,7 +25,9 @@ func (c *Client) ReadMeterEntry(ctx context.Context, meter string, index int64) 
 		Entity: &p4_v1.Entity_MeterEntry{MeterEntry: entry},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error when reading meter entry: %v", err)
+		// 原样返回err,以便后续可以以GRPC的错误进行处理
+		// return nil, fmt.Errorf("error when reading meter entry: %v", err)
+		return nil, err
 	}
 	readEntry := readEntity.GetMeterEntry()
 	if readEntry == nil {
@@ -64,7 +66,9 @@ func (c *Client) ReadMeterEntryWildcard(ctx context.Context, meter string) ([]*p
 	if err := c.ReadEntityWildcard(ctx, &p4_v1.Entity{
 		Entity: &p4_v1.Entity_MeterEntry{MeterEntry: entry},
 	}, readEntityCh); err != nil {
-		return nil, fmt.Errorf("error when reading meter entries: %v", err)
+		// 原样返回err,以便后续可以以GRPC的错误进行处理
+		// return nil, fmt.Errorf("error when reading meter entries: %v", err)
+		return nil, err
 	}
 	wg.Wait()
 	if err != nil {

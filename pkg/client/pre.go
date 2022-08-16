@@ -132,7 +132,9 @@ func (c *Client) ReadMulticastGroupWildcard(ctx context.Context) ([]*p4_v1.Multi
 			PacketReplicationEngineEntry: entry,
 		},
 	}, readEntityCh); err != nil {
-		return nil, fmt.Errorf("error when reading table entries: %v", err)
+		// 原样返回err,以便后续可以以GRPC的错误进行处理
+		// return nil, fmt.Errorf("error when reading table entries: %v", err)
+		return nil, err
 	}
 
 	wg.Wait()
@@ -156,7 +158,10 @@ func (c *Client) ReadMulticastGroup(ctx context.Context, mgid uint32) (*p4_v1.Mu
 	}
 	readEntity, err := c.ReadEntitySingle(ctx, entity)
 	if err != nil {
-		return nil, fmt.Errorf("error when reading multicast group entry: %v", err)
+		// 原样返回err,以便后续可以以GRPC的错误进行处理
+		// return nil, fmt.Errorf("error when reading multicast group entry: %v", err)
+		return nil, err
+
 	}
 
 	readEntry := readEntity.GetPacketReplicationEngineEntry()

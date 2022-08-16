@@ -265,7 +265,9 @@ func (c *Client) ReadTableEntry(ctx context.Context, table string, mfs []MatchIn
 
 	readEntity, err := c.ReadEntitySingle(ctx, entity)
 	if err != nil {
-		return nil, fmt.Errorf("error when reading table entry: %v", err)
+		// 原样返回err,以便后续可以以GRPC的错误进行处理
+		// return nil, fmt.Errorf("error when reading table entry: %v", err)
+		return nil, err
 	}
 
 	readEntry := readEntity.GetTableEntry()
@@ -308,7 +310,9 @@ func (c *Client) ReadTableEntryWildcard(ctx context.Context, table string) ([]*p
 	if err := c.ReadEntityWildcard(ctx, &p4_v1.Entity{
 		Entity: &p4_v1.Entity_TableEntry{TableEntry: entry},
 	}, readEntityCh); err != nil {
-		return nil, fmt.Errorf("error when reading table entries: %v", err)
+		// 原样返回err,以便后续可以以GRPC的错误进行处理
+		// return nil, fmt.Errorf("error when reading table entries: %v", err)
+		return nil, err
 	}
 
 	wg.Wait()
